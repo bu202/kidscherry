@@ -1994,13 +1994,11 @@ function renderStats(){
       <div class="stat-val" style="color:${s.color};">${s.val}</div></div>`).join("");
   } else {
     // 일반 주차: 6칸 통계 (출석·지각·결석 + 점수정보)
-    // 이번 주차 평균 점수
-    const weekScores = pool.map(m=>{
-      const e=w[m.id];
-      if(!e||e.status==="결석") return scoreConfig.absent;
-      return e.score!==undefined ? e.score : (e.status==="출석"?scoreConfig.onTime:0);
-    });
-    const avgScore = pool.length ? Math.round((weekScores.reduce((a,b)=>a+b,0)/pool.length)*10)/10 : 0;
+    // 누적 평균 점수 (진행된 주차 전체 기준)
+    const conducted = getConductedWeeks();
+    const avgScore = (pool.length && conducted.length)
+      ? Math.round((pool.reduce((sum,m)=>sum+calcTotalScore(m.id),0)/pool.length)*10)/10
+      : 0;
     // 누적 점수 기준 수료 가능 인원
     const passCount = pool.filter(m=>calcTotalScore(m.id)>=passConfig.pass).length;
     const maxS = passConfig.max;
@@ -2014,7 +2012,7 @@ function renderStats(){
       <div class="stat-label" style="color:${s.color};font-weight:800;">${s.label}</div>
       <div class="stat-val" style="color:${s.color};">${s.val}</div></div>`).join("")
     + `<div class="stat-card" style="background:linear-gradient(135deg,#EEF4FF,#E0EAFF);border:1.5px solid #6366f122;box-shadow:0 3px 12px #6366f115;">
-        <div class="stat-label" style="color:#4f46e5;font-weight:800;">📊 주차평균</div>
+        <div class="stat-label" style="color:#4f46e5;font-weight:800;">📊 누적평균</div>
         <div class="stat-val" style="color:#4f46e5;font-size:22px;">${avgScore}<span style="font-size:13px;font-weight:600;">점</span></div>
       </div>
       <div class="stat-card" style="background:linear-gradient(135deg,#FFFBEB,#FEF3C7);border:1.5px solid #f59e0b22;box-shadow:0 3px 12px #f59e0b15;">
@@ -2164,7 +2162,7 @@ function renderAttTable(){
 
   const isEdu = isEduWeek(week);
   const colSpan = isEdu ? 9 : 10;
-  $("attHead").innerHTML=`<tr><th>ID</th><th>이름</th><th>성별</th><th>직임</th><th>파트</th><th>상태</th><th>출석시간</th>${isEdu?"":"<th>강의구분</th><th>점수</th>"}<th>비고 (사유)</th><th title="레포트 제출 여부">레포트✅</th></tr>`;
+  $("attHead").innerHTML=`<tr><th>ID</th><th>이름</th><th>성별</th><th>직임</th><th>파트</th><th>상태</th><th>출석시간</th>${isEdu?"":"<th>강의구분</th><th title='이번주 점수·마우스 호버시 누적점수 표시'>누적점수</th>"}<th>비고 (사유)</th><th title="레포트 제출 여부">레포트✅</th></tr>`;
 
   let lastJo=null;
   const rows=[];
@@ -2200,8 +2198,9 @@ function renderAttTable(){
       const absentSelected = (lecLbl==="결석" || (cur==="결석" && !a?.lecLabel)) ? " selected" : "";
       const lecOptions = `<option value="출석"${onTimeSelected}>출석 · ${scoreConfig.onTime}점</option>${lateOptions}<option value="결석"${absentSelected}>결석 · ${scoreConfig.absent}점</option>`;
       lecCell = `<td><select class="lec-sel ${badgeCls}" title="강의구분을 클릭해 수동 변경" onchange="changeLecture('${m.id}', this.value)">${lecOptions}</select></td>`;
-      const sCls = scoreColorClass(scoreVal, scoreConfig.onTime);
-      scoreCell = `<td class="score-cell ${sCls}">${scoreVal}점</td>`;
+      const cumScore = calcTotalScore(m.id);
+      const sCls = scoreColorClass(cumScore, passConfig.max);
+      scoreCell = `<td class="score-cell ${sCls}" title="이번주 ${scoreVal}점 / 누적 ${cumScore}점">${cumScore}점</td>`;
     }
 
     // 비고·레포트: 지각/결석일 때만 활성화
@@ -2537,8 +2536,10 @@ function renderMemberTable(){
 function switchTab(t,btn){
   document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active")); btn.classList.add("active");
   ["att","log","mem","info"].forEach(k=>{const el=$(`pane-${k}`);if(el)el.style.display=k===t?"block":"none";});
-  if(t==="log") renderLogTab();
+  if(t==="att")  renderAll();         // ✅ 출석 현황 탭: 항상 최신 데이터로 재렌더
+  if(t==="log")  renderLogTab();
   if(t==="info") renderInfoTable();
+  if(t==="mem")  renderMemberTable(); // ✅ 명단 관리 탭: 최신 점수 갱신
   // 명단관리 탭이 아니면 플로팅 바 숨기기
   if(typeof updateBulkActionBar==="function") updateBulkActionBar();
 }
