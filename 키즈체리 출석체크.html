@@ -1147,7 +1147,7 @@ function calcLectureStatus(timeStr){
   // ✅ Fix: 마감(cutoff)과 첫 강의 시작 사이 공백은 첫 강의 지각으로 흡수
   //        (예: cutoff=08:45, 1강=09:00 인 경우 08:46~08:59 도 1강 지각으로)
   for(let i=0; i<sorted.length; i++){
-    const from = (i === 0 && cutoff < sorted[0].time) ? cutoff : sorted[i].time;
+    const from = (i === 0 && cutoff <= sorted[0].time) ? cutoff : sorted[i].time;
     const to   = i+1 < sorted.length ? sorted[i+1].time : "23:59";
     if(t >= from && t < to){
       const lbl = sorted[i].label || `${i+1}강`;
@@ -1175,7 +1175,7 @@ function calcTotalScore(memberId){
     } else if(entry.status==="출석"){
       total += scoreConfig.onTime;
     } else if(entry.status==="지각"){
-      total += 0;
+      total += entry.score !== undefined ? entry.score : 0; // 강의별 지각 점수 사용
     }
   });
   return Math.round(total*10)/10;
@@ -1377,6 +1377,7 @@ function addWeek(type){
   renderWeeksUI();
   initWeek();
   renderCutoffUI();
+  renderAll(); // ✅ 통계/테이블 즉시 갱신
 }
 
 function deleteWeek(type, idx){
@@ -1642,7 +1643,8 @@ function saveRoleEdit(i){
 function deleteRole(i){
   const r=roles[i];
   const cnt=members.filter(m=>m.role===r.name).length;
-  const fallbackRole=roles.find((_,j)=>j!==i)?.name||"";
+  // fallback: 같은 isEdu 계층 우선, 없으면 다른 아무 직임
+  const fallbackRole=(roles.find((_,j)=>j!==i&&_.isEdu===r.isEdu)||roles.find((_,j)=>j!==i))?.name||"";
   const msg=cnt>0
     ?`'${r.name}' 직임을 삭제합니다.\n소속 멤버 ${cnt}명은 '${fallbackRole}'으로 변경됩니다. 계속하시겠습니까?`
     :`'${r.name}' 직임을 삭제합니다.`;
@@ -2396,7 +2398,7 @@ function saveEditMember(id){
         // 출석 기록의 key(id)도 함께 이동
         Object.keys(att).forEach(wk=>{
           if(att[wk][id]){
-            att[wk][newId]={...att[wk][id]};
+            att[wk][newId]={...att[wk][id], role:newRole, name:newName||att[wk][id].name};
             delete att[wk][id];
           }
         });
@@ -2604,7 +2606,8 @@ function deleteAllMembers(){
 function exportCSV(){
   const w=wa();
   const rows=[["ID","이름","성별","직임","파트","상태","시간","비고(사유)","레포트제출","주차"]];
-  members.forEach(m=>{
+  const pool=eligibleMembers(); // 간사교육 주차면 간사만, 일반 주차면 전체
+  pool.forEach(m=>{
     const a=w[m.id];
     rows.push([
       m.id,m.name,m.gender,m.role,m.part,
