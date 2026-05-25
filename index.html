@@ -4204,62 +4204,150 @@ function _fallbackCopy(text){
 //  - pushMembers       : 멤버 변경 시 _멤버 탭에 전체 저장 (디바운스)
 // ══════════════════════════════════════════════
 
+// ══════════════════════════════════════════════
+//  🔍 Sheets 동기화 진단 도구
+//  콘솔에서 언제든 호출: debugSheetsStatus() / debugSync()
+// ══════════════════════════════════════════════
+function debugSheetsStatus() {
+  const url = localStorage.getItem(GSHEET_KEYS.url) || '';
+  console.group('🔍 Sheets 동기화 상태 진단');
+  console.log('📌 Apps Script URL:', url || '❌ 미설정 (설정 > 시트 연동에서 입력)');
+  console.log('📌 v5 confirmed:', localStorage.getItem(GSHEET_KEYS.v5));
+  console.log('📌 inited tabs:', localStorage.getItem(GSHEET_KEYS.inited));
+  console.log('📌 로컬 멤버 수:', members.length);
+  console.log('📌 로컬 출석 주차:', Object.keys(att));
+  if (!url) {
+    console.error('❌ URL 없음 → 설정 드로어 > 시트 연동 > Apps Script 웹앱 URL 입력 후 저장');
+  } else {
+    console.log('▶ URL 있음 → debugSync() 로 수동 동기화 테스트 가능');
+  }
+  console.groupEnd();
+}
+
 // ── 앱 시작 시 Sheets 매트릭스 탭에서 최신 데이터 갱신 ──
 // 우선순위: readMatrix (학생/간사 탭) → loadApp (_멤버/_출석 탭) → localStorage
 // localStorage 데이터로 즉시 렌더 후 백그라운드에서 조용히 갱신 (stale-while-revalidate)
 async function refreshFromSheets() {
   const url = localStorage.getItem(GSHEET_KEYS.url) || '';
-  if (!url) return;
+
+  console.group('🔄 [Sheets 동기화] refreshFromSheets 시작');
+  console.log('⏱ 시각:', new Date().toLocaleTimeString());
+  console.log('📌 URL:', url || '❌ 미설정');
+
+  if (!url) {
+    console.warn('⛔ Apps Script URL이 설정되지 않아 동기화를 건너뜁니다.');
+    console.warn('   → 앱 우측 상단 ⚙설정 > 시트 연동 탭 > URL 입력 후 저장');
+    console.groupEnd();
+    return;
+  }
 
   // ① readMatrix 시도 (매트릭스 탭 — 학생/간사)
+  console.group('① readMatrix 시도 (학생/간사 탭)');
   try {
+    console.log('📤 fetch 요청 전송 중...');
     const res  = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'readMatrix' })
     });
-    const json = JSON.parse(await res.text());
+    console.log('📥 HTTP 상태:', res.status, res.statusText);
+
+    const rawText = await res.text();
+    console.log('📥 raw 응답 (처음 500자):', rawText.slice(0, 500));
+
+    let json;
+    try {
+      json = JSON.parse(rawText);
+      console.log('✅ JSON 파싱 성공:', json);
+    } catch(parseErr) {
+      console.error('❌ JSON 파싱 실패 — HTML이 반환됐을 가능성 (로그인 필요 or 권한 오류)');
+      console.error('   파싱 오류:', parseErr.message);
+      console.groupEnd(); console.groupEnd();
+      return;
+    }
 
     if (json.result === 'success') {
+      console.log('✅ readMatrix 성공!');
+      console.log('   읽은 탭:', json.tabs);
+      console.log('   멤버 수:', json.members?.length ?? 0);
+      console.log('   출석 주차:', Object.keys(json.att ?? {}));
+      console.log('   멤버 목록:', json.members);
+      console.groupEnd();
+
+      console.group('② _applyMatrixData 적용');
       const changed = _applyMatrixData(json);
+      console.log('   변경됨:', changed);
+      console.groupEnd();
+
       if (changed) {
         renderAll();
         const tabLabel = [json.tabs?.student, json.tabs?.gansa].filter(Boolean).join('/');
         showToast(`✅ Sheets [${tabLabel}] 탭에서 데이터 반영됨`, 2500);
+      } else {
+        console.log('ℹ️ Sheets 데이터와 로컬 데이터가 동일 → 렌더 스킵');
       }
+      console.groupEnd();
       return; // readMatrix 성공 → 종료
     }
-    console.warn('readMatrix 실패:', json.message, '— loadApp으로 폴백');
+
+    console.warn('⚠️ readMatrix result ≠ success:', json.result, json.message);
+    console.warn('   → loadApp으로 폴백');
   } catch(e) {
-    console.warn('readMatrix 오류:', e, '— loadApp으로 폴백');
+    console.error('❌ readMatrix fetch 오류 (네트워크/CORS?):', e);
+    console.warn('   → loadApp으로 폴백');
   }
+  console.groupEnd();
 
   // ② loadApp 폴백 (_멤버/_출석 탭)
+  console.group('② loadApp 폴백 (_멤버/_출석 탭)');
   try {
+    console.log('📤 fetch 요청 전송 중...');
     const res  = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'loadApp' })
     });
-    const json = JSON.parse(await res.text());
-    if (json.result !== 'success') return;
+    console.log('📥 HTTP 상태:', res.status);
+    const rawText = await res.text();
+    console.log('📥 raw 응답 (처음 500자):', rawText.slice(0, 500));
+
+    let json;
+    try { json = JSON.parse(rawText); }
+    catch(parseErr) {
+      console.error('❌ JSON 파싱 실패:', parseErr.message);
+      console.groupEnd(); console.groupEnd(); return;
+    }
+    console.log('✅ JSON 파싱:', json);
+    if (json.result !== 'success') {
+      console.error('❌ loadApp 실패:', json.message);
+      console.groupEnd(); console.groupEnd(); return;
+    }
 
     let changed = false;
     if (Array.isArray(json.members) && json.members.length > 0) {
+      console.log('   멤버 업데이트:', json.members.length, '명');
       members = json.members;
       save('cherry_members_v5', members);
       changed = true;
     }
     if (json.att && typeof json.att === 'object') {
+      console.log('   출석 업데이트:', Object.keys(json.att));
       Object.keys(json.att).forEach(wk => { att[wk] = json.att[wk]; });
       save('cherry_att_v5', att);
       changed = true;
     }
     if (changed) { renderAll(); showToast('✅ Sheets(_멤버/_출석)에서 데이터 반영됨', 2000); }
+    else { console.log('ℹ️ 변경 없음'); }
   } catch(e) {
-    console.warn('loadApp 실패 — 로컬 데이터 유지:', e);
+    console.error('❌ loadApp fetch 오류:', e);
   }
+  console.groupEnd();
+  console.groupEnd();
 }
+
+// 콘솔에서 수동으로 호출 가능하게 전역 노출
+window.debugSync   = refreshFromSheets;
+window.debugStatus = debugSheetsStatus;
 
 // ── readMatrix 응답을 로컬 멤버/출석 데이터에 적용 ──
 // - 이름(name) 기준으로 로컬 멤버와 매칭
