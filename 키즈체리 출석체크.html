@@ -305,6 +305,10 @@ tr.mem-row-selected td{background:#FFF0DC!important;}
     <button class="btn-hdr" onclick="openDrawer('roles')">🏷 직임 관리</button>
     <button class="btn-hdr" onclick="openDrawer('design')">🎨 디자인</button>
     <button class="btn-hdr" onclick="exportCSV()">⬇ CSV</button>
+    <button class="btn-hdr" onclick="loadFromGithubBackup()"
+      title="GitHub에 커밋된 backup.json에서 전체 데이터 불러오기">
+      ☁ GitHub 불러오기
+    </button>
     <button class="btn-hdr" onclick="syncToSheetsNow(false)"
       id="btnSheetSync"
       title="현재 주차를 Google Sheets에 즉시 동기화">
@@ -1021,7 +1025,7 @@ roles = roles.map(r => {
   if(def && def.partType) return {...r, partType: def.partType};
   return r;
 });
-let members  = load("cherry_members_v5", SAMPLE);
+let members  = load("cherry_members_v5", []);
 let att      = load("cherry_att_v5", {});
 
 // ✅ 마이그레이션: 저장된 roles 정합성 보정
@@ -4198,231 +4202,61 @@ function _fallbackCopy(text){
 }
 
 // ══════════════════════════════════════════════
-// 📡 Google Sheets 양방향 연동 (v7)
-//  - refreshFromSheets : 앱 시작 시 백그라운드로 Sheets → localStorage
-//  - pushAttEntry      : 출석 변경 시 _출석 탭에 upsert/delete
-//  - pushMembers       : 멤버 변경 시 _멤버 탭에 전체 저장 (디바운스)
+// 📡 데이터 연동
+//  - loadFromGithubBackup : GitHub의 backup.json에서 전체 데이터 복원
+//  - pushAttEntry         : 출석 변경 시 Sheets _출석 탭에 upsert/delete (URL 설정 시에만)
+//  - pushMembers          : 멤버 변경 시 Sheets _멤버 탭 갱신 (URL 설정 시에만)
 // ══════════════════════════════════════════════
 
-// ══════════════════════════════════════════════
-//  🔍 Sheets 동기화 진단 도구
-//  콘솔에서 언제든 호출: debugSheetsStatus() / debugSync()
-// ══════════════════════════════════════════════
+const GITHUB_BACKUP_URL = 'https://raw.githubusercontent.com/bu202/kidscherry/main/backup.json';
+
+// ── GitHub backup.json에서 전체 데이터 불러오기 ──
+async function loadFromGithubBackup(force = false) {
+  try {
+    showToast('🔄 GitHub 백업에서 데이터 불러오는 중...', 2000);
+    const res = await fetch(GITHUB_BACKUP_URL + '?t=' + Date.now());
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data.members || !Array.isArray(data.members)) throw new Error('백업 파일 형식 오류');
+
+    if (!force && members.length > 0) {
+      if (!confirm(`GitHub 백업 (${data.exportedAt?.slice(0,10) || '날짜 불명'}, ${data.members.length}명)을 불러올까요?\n현재 로컬 데이터(${members.length}명)가 덮어씌워집니다.`)) return;
+    }
+
+    // 전체 복원 (restoreData와 동일한 로직)
+    if (Array.isArray(data.roles))        { roles        = data.roles;        save('cherry_roles_v5',     roles); }
+    if (Array.isArray(data.members))      { members      = data.members;      save('cherry_members_v5',   members); }
+    if (data.att)                         { att          = data.att;          save('cherry_att_v5',       att); }
+    if (data.week)                        { week         = data.week;         save('cherry_week_v5',      week); }
+    if (data.cutoffs)                     { cutoffs      = data.cutoffs;      save('cherry_cutoffs_v6',   cutoffs); }
+    if (data.design)                      { design       = data.design;       save('cherry_design_v5',    design); }
+    if (Array.isArray(data.personalInfo)) { personalInfo = data.personalInfo; save('cherry_pinfo_v7',     personalInfo); }
+    if (data.customWeeks)                 { customWeeks  = data.customWeeks;  save('cherry_weeks_v8',     customWeeks); }
+    if (Array.isArray(data.lectures))     { lectures     = data.lectures;     save('cherry_lectures_v1',  lectures); }
+    if (data.scoreConfig)                 { scoreConfig  = data.scoreConfig;  save('cherry_score_cfg_v1', scoreConfig); }
+    if (data.passConfig)                  { passConfig   = data.passConfig;   save('cherry_pass_cfg_v1',  passConfig); }
+
+    initWeek(); initNewRoleSelect(); applyDesignToDOM(); renderAll(); renderInfoRoleFilter();
+    showToast(`✅ 복원 완료 — ${members.length}명 · ${Object.keys(att).length}개 주차`, 3500);
+  } catch(e) {
+    showToast('❌ GitHub 백업 불러오기 실패: ' + e.message, 4000);
+    console.error('[loadFromGithubBackup]', e);
+  }
+}
+window.loadFromGithub = () => loadFromGithubBackup(true);
+
 function debugSheetsStatus() {
   const url = localStorage.getItem(GSHEET_KEYS.url) || '';
-  console.group('🔍 Sheets 동기화 상태 진단');
-  console.log('📌 Apps Script URL:', url || '❌ 미설정 (설정 > 시트 연동에서 입력)');
-  console.log('📌 v5 confirmed:', localStorage.getItem(GSHEET_KEYS.v5));
-  console.log('📌 inited tabs:', localStorage.getItem(GSHEET_KEYS.inited));
+  console.group('🔍 상태 진단');
+  console.log('📌 GitHub 백업 URL:', GITHUB_BACKUP_URL);
+  console.log('📌 Apps Script URL:', url || '❌ 미설정');
   console.log('📌 로컬 멤버 수:', members.length);
   console.log('📌 로컬 출석 주차:', Object.keys(att));
-  if (!url) {
-    console.error('❌ URL 없음 → 설정 드로어 > 시트 연동 > Apps Script 웹앱 URL 입력 후 저장');
-  } else {
-    console.log('▶ URL 있음 → debugSync() 로 수동 동기화 테스트 가능');
-  }
   console.groupEnd();
 }
 
-// ── 앱 시작 시 Sheets 매트릭스 탭에서 최신 데이터 갱신 ──
-// 우선순위: readMatrix (학생/간사 탭) → loadApp (_멤버/_출석 탭) → localStorage
-// localStorage 데이터로 즉시 렌더 후 백그라운드에서 조용히 갱신 (stale-while-revalidate)
-async function refreshFromSheets() {
-  const url = localStorage.getItem(GSHEET_KEYS.url) || '';
-
-  console.group('🔄 [Sheets 동기화] refreshFromSheets 시작');
-  console.log('⏱ 시각:', new Date().toLocaleTimeString());
-  console.log('📌 URL:', url || '❌ 미설정');
-
-  if (!url) {
-    console.warn('⛔ Apps Script URL이 설정되지 않아 동기화를 건너뜁니다.');
-    console.warn('   → 앱 우측 상단 ⚙설정 > 시트 연동 탭 > URL 입력 후 저장');
-    console.groupEnd();
-    return;
-  }
-
-  // ① readMatrix 시도 (매트릭스 탭 — 학생/간사)
-  console.group('① readMatrix 시도 (학생/간사 탭)');
-  try {
-    console.log('📤 fetch 요청 전송 중...');
-    const res  = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'readMatrix' })
-    });
-    console.log('📥 HTTP 상태:', res.status, res.statusText);
-
-    const rawText = await res.text();
-    console.log('📥 raw 응답 (처음 500자):', rawText.slice(0, 500));
-
-    let json;
-    try {
-      json = JSON.parse(rawText);
-      console.log('✅ JSON 파싱 성공:', json);
-    } catch(parseErr) {
-      console.error('❌ JSON 파싱 실패 — HTML이 반환됐을 가능성 (로그인 필요 or 권한 오류)');
-      console.error('   파싱 오류:', parseErr.message);
-      console.groupEnd(); console.groupEnd();
-      return;
-    }
-
-    if (json.result === 'success') {
-      console.log('✅ readMatrix 성공!');
-      console.log('   읽은 탭:', json.tabs);
-      console.log('   멤버 수:', json.members?.length ?? 0);
-      console.log('   출석 주차:', Object.keys(json.att ?? {}));
-      console.log('   멤버 목록:', json.members);
-      console.groupEnd();
-
-      console.group('② _applyMatrixData 적용');
-      const changed = _applyMatrixData(json);
-      console.log('   변경됨:', changed);
-      console.groupEnd();
-
-      if (changed) {
-        renderAll();
-        const tabLabel = [json.tabs?.student, json.tabs?.gansa].filter(Boolean).join('/');
-        showToast(`✅ Sheets [${tabLabel}] 탭에서 데이터 반영됨`, 2500);
-      } else {
-        console.log('ℹ️ Sheets 데이터와 로컬 데이터가 동일 → 렌더 스킵');
-      }
-      console.groupEnd();
-      return; // readMatrix 성공 → 종료
-    }
-
-    console.warn('⚠️ readMatrix result ≠ success:', json.result, json.message);
-    console.warn('   → loadApp으로 폴백');
-  } catch(e) {
-    console.error('❌ readMatrix fetch 오류 (네트워크/CORS?):', e);
-    console.warn('   → loadApp으로 폴백');
-  }
-  console.groupEnd();
-
-  // ② loadApp 폴백 (_멤버/_출석 탭)
-  console.group('② loadApp 폴백 (_멤버/_출석 탭)');
-  try {
-    console.log('📤 fetch 요청 전송 중...');
-    const res  = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'loadApp' })
-    });
-    console.log('📥 HTTP 상태:', res.status);
-    const rawText = await res.text();
-    console.log('📥 raw 응답 (처음 500자):', rawText.slice(0, 500));
-
-    let json;
-    try { json = JSON.parse(rawText); }
-    catch(parseErr) {
-      console.error('❌ JSON 파싱 실패:', parseErr.message);
-      console.groupEnd(); console.groupEnd(); return;
-    }
-    console.log('✅ JSON 파싱:', json);
-    if (json.result !== 'success') {
-      console.error('❌ loadApp 실패:', json.message);
-      console.groupEnd(); console.groupEnd(); return;
-    }
-
-    let changed = false;
-    if (Array.isArray(json.members) && json.members.length > 0) {
-      console.log('   멤버 업데이트:', json.members.length, '명');
-      members = json.members;
-      save('cherry_members_v5', members);
-      changed = true;
-    }
-    if (json.att && typeof json.att === 'object') {
-      console.log('   출석 업데이트:', Object.keys(json.att));
-      Object.keys(json.att).forEach(wk => { att[wk] = json.att[wk]; });
-      save('cherry_att_v5', att);
-      changed = true;
-    }
-    if (changed) { renderAll(); showToast('✅ Sheets(_멤버/_출석)에서 데이터 반영됨', 2000); }
-    else { console.log('ℹ️ 변경 없음'); }
-  } catch(e) {
-    console.error('❌ loadApp fetch 오류:', e);
-  }
-  console.groupEnd();
-  console.groupEnd();
-}
-
-// 콘솔에서 수동으로 호출 가능하게 전역 노출
-window.debugSync   = refreshFromSheets;
+// 콘솔 진단 도구
 window.debugStatus = debugSheetsStatus;
-
-// ── readMatrix 응답을 로컬 멤버/출석 데이터에 적용 ──
-// - 이름(name) 기준으로 로컬 멤버와 매칭
-// - 기존 멤버: role/part 업데이트, ID 유지
-// - 신규 멤버: assignId()로 ID 배정 후 등록
-// - 출석: name→id 변환 후 status 덮어쓰기 (time/score/note 기존값 유지)
-function _applyMatrixData(json) {
-  let changed = false;
-
-  // ─ 멤버 동기화 ─
-  if (Array.isArray(json.members) && json.members.length > 0) {
-    json.members.forEach(sm => {
-      if (!sm.name) return;
-      const existing = members.find(m => m.name === sm.name);
-      if (existing) {
-        // 기존 멤버: role/part만 갱신 (ID·gender·reg 유지)
-        if (sm.role && existing.role !== sm.role) { existing.role = sm.role; changed = true; }
-        if (sm.part && existing.part !== sm.part) { existing.part = sm.part; changed = true; }
-      } else {
-        // 신규 멤버: ID 자동 배정
-        const newId = assignId(sm.role || '학생');
-        if (newId) {
-          members.push({
-            id: newId, name: sm.name, gender: '',
-            role: sm.role || '학생', part: sm.part || '—', reg: today()
-          });
-          changed = true;
-        } else {
-          console.warn('ID 배정 실패 (구간 초과?):', sm.name, sm.role);
-        }
-      }
-    });
-    if (changed) {
-      members.sort((a, b) => a.id.localeCompare(b.id));
-      save('cherry_members_v5', members);
-    }
-  }
-
-  // ─ 출석 동기화 (name → id 변환) ─
-  if (json.att && typeof json.att === 'object') {
-    Object.keys(json.att).forEach(wk => {
-      if (!att[wk]) att[wk] = {};
-      Object.keys(json.att[wk]).forEach(name => {
-        const m = members.find(x => x.name === name);
-        if (!m) return; // 매칭 안 되는 이름 → 스킵
-        const sheetsStatus = json.att[wk][name].status; // '출석'|'지각'|'결석'
-        const prev = att[wk][m.id] || {};
-
-        // 결석이고 기존 기록이 없으면 엔트리 생성 안 함 (불필요한 결석 엔트리 방지)
-        if (sheetsStatus === '결석' && !prev.note && !prev.report) {
-          delete att[wk][m.id];
-          return;
-        }
-
-        // status 덮어쓰기. time·note·report 등 기존 상세 데이터는 보존
-        const score = sheetsStatus === '출석' ? (scoreConfig?.onTime ?? 1)
-                    : sheetsStatus === '지각' ? 0
-                    : (scoreConfig?.absent ?? 0);
-        att[wk][m.id] = {
-          ...prev,
-          status:   sheetsStatus,
-          lecLabel: sheetsStatus,
-          score:    score,
-          name:     m.name,
-          part:     m.part,
-          role:     m.role
-        };
-      });
-    });
-    save('cherry_att_v5', att);
-    changed = true;
-  }
-
-  return changed;
-}
 
 // ── 단일 출석 기록 Push (_출석 탭 upsert 또는 delete) ──
 function pushAttEntry(memberId, wkOverride) {
@@ -4464,8 +4298,10 @@ function pushMembers() {
 initWeek(); initNewRoleSelect(); buildColorPresets(); applyDesignToDOM();
 buildBulkPartOptions(); // 명단관리 일괄 적용 드롭다운
 
-// Sheets URL이 설정된 경우 백그라운드에서 최신 데이터 갱신 (앱 렌더 후 200ms)
-setTimeout(refreshFromSheets, 200);
+// 앱 시작 시 로컬 데이터 없으면 GitHub 백업에서 자동 복원
+if (members.length === 0) {
+  setTimeout(() => loadFromGithubBackup(true), 300);
+}
 migrateIds(); // ← 기존 데이터 ID 자동 재배정
 renderAll(); renderInfoRoleFilter();
 loadSheetSettings();
