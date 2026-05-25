@@ -3678,13 +3678,19 @@ function migrateIds(){
 // ════════════════════════════════════════════════
 //  📊 Google Sheets 연동 (Apps Script)
 // ════════════════════════════════════════════════
+// ── 기본 Apps Script URL (별도 설정 없이 바로 사용) ──
+const DEFAULT_GSHEET_URL = 'https://script.google.com/macros/s/AKfycbw7F_38FrR9bdMVk-fyfYfR6CgQ6HI5BK_hZlbuLU3m5SS1DEx9FuFv6aXk9XdlqD1Y6g/exec';
+
 const GSHEET_KEYS = {
   url:       'cherry_gsheet_url',
   attTab:    'cherry_gsheet_att_tab',
   memberTab: 'cherry_gsheet_member_tab',
-  inited:    'cherry_gsheet_inited_tabs', // 전체 멤버가 1번이라도 기록된 탭들
-  v5:        'cherry_gsheet_v5_confirmed'  // Apps Script v5 deploy 확인됨 ('1')
+  inited:    'cherry_gsheet_inited_tabs',
+  v5:        'cherry_gsheet_v5_confirmed'
 };
+
+// localStorage에 저장된 URL이 없으면 기본값 사용
+function getGsheetUrl(){ return localStorage.getItem(GSHEET_KEYS.url) || DEFAULT_GSHEET_URL; }
 
 // ── Apps Script v5 확인 플래그 (확인 전엔 incremental 시도 안 함) ──
 function _isV5Confirmed()  { return localStorage.getItem(GSHEET_KEYS.v5) === '1'; }
@@ -3726,7 +3732,7 @@ function saveSheetSettings() {
 }
 
 function loadSheetSettings() {
-  const url    = localStorage.getItem(GSHEET_KEYS.url)       || '';
+  const url    = getGsheetUrl(); // localStorage 없으면 기본 URL 표시
   const attTab = localStorage.getItem(GSHEET_KEYS.attTab)    || '출석기록';
   const memTab = localStorage.getItem(GSHEET_KEYS.memberTab) || '';
   if ($('sheetsScriptUrl'))  $('sheetsScriptUrl').value  = url;
@@ -3855,7 +3861,7 @@ function buildAllMatrices() {
 }
 
 async function testSheetConnection() {
-  const url = localStorage.getItem(GSHEET_KEYS.url) || '';
+  const url = getGsheetUrl();
   if (!url) {
     showToast('⚠️ 먼저 Apps Script 웹앱 URL을 입력하고 저장해주세요.');
     return;
@@ -3914,7 +3920,7 @@ let _memberSyncTimer = null;
 
 // 외부 진입점: 멤버 1명 변경 시 호출 (자동 동기화 hook용)
 function syncMember(memberId) {
-  const url = localStorage.getItem(GSHEET_KEYS.url) || '';
+  const url = getGsheetUrl();
   if (!url) return;
   // v6 미확인 OR 매트릭스 탭 미초기화 → 전체 매트릭스 동기화로 폴백
   const tabName = _matrixTabForWeek(week);
@@ -3926,7 +3932,7 @@ function syncMember(memberId) {
 
 // 외부 진입점: 멤버 여러 명 일괄 변경 시 (전체 출석/지각/결석 등)
 function syncMembers(memberIds) {
-  const url = localStorage.getItem(GSHEET_KEYS.url) || '';
+  const url = getGsheetUrl();
   if (!url) return;
   const tabName = _matrixTabForWeek(week);
   if (!_isV5Confirmed() || !_isTabInited(tabName)) { syncToSheets(false); return; }
@@ -3960,7 +3966,7 @@ async function _flushMemberSync() {
 }
 
 async function _sendMemberUpdate(wk, ids) {
-  const url = localStorage.getItem(GSHEET_KEYS.url) || '';
+  const url = getGsheetUrl();
   if (!url) return;
 
   const tabName  = _matrixTabForWeek(wk);
@@ -4057,7 +4063,7 @@ async function _runOrQueue(fullSync) {
 }
 
 async function _doSync(fullSync) {
-  const url = localStorage.getItem(GSHEET_KEYS.url) || '';
+  const url = getGsheetUrl();
   if (!url) return;
 
   // 매트릭스 페이로드 빌드:
@@ -4250,7 +4256,7 @@ async function loadFromGithubBackup(force = false) {
 window.loadFromGithub = () => loadFromGithubBackup(true);
 
 function debugSheetsStatus() {
-  const url = localStorage.getItem(GSHEET_KEYS.url) || '';
+  const url = getGsheetUrl();
   console.group('🔍 상태 진단');
   console.log('📌 GitHub 백업 URL:', GITHUB_BACKUP_URL);
   console.log('📌 Apps Script URL:', url || '❌ 미설정');
@@ -4264,7 +4270,7 @@ window.debugStatus = debugSheetsStatus;
 
 // ── 단일 출석 기록 Push (_출석 탭 upsert 또는 delete) ──
 function pushAttEntry(memberId, wkOverride) {
-  const url = localStorage.getItem(GSHEET_KEYS.url) || '';
+  const url = getGsheetUrl();
   if (!url) return;
   const wk = wkOverride || week;
   const a  = (att[wk] || {})[memberId];
@@ -4286,7 +4292,7 @@ function pushAttEntry(memberId, wkOverride) {
 // ── 멤버 전체 Push (_멤버 탭 갱신, 디바운스 600ms) ──
 let _memberPushTimer = null;
 function pushMembers() {
-  const url = localStorage.getItem(GSHEET_KEYS.url) || '';
+  const url = getGsheetUrl();
   if (!url) return;
   if (_memberPushTimer) clearTimeout(_memberPushTimer);
   _memberPushTimer = setTimeout(() => {
