@@ -4204,11 +4204,37 @@ function _fallbackCopy(text){
 //  - pushMembers       : 멤버 변경 시 _멤버 탭에 전체 저장 (디바운스)
 // ══════════════════════════════════════════════
 
-// ── 앱 시작 시 Sheets에서 최신 데이터 갱신 (stale-while-revalidate) ──
-// localStorage 데이터로 즉시 렌더 후, 백그라운드에서 Sheets 데이터로 조용히 갱신
+// ── 앱 시작 시 Sheets 매트릭스 탭에서 최신 데이터 갱신 ──
+// 우선순위: readMatrix (학생/간사 탭) → loadApp (_멤버/_출석 탭) → localStorage
+// localStorage 데이터로 즉시 렌더 후 백그라운드에서 조용히 갱신 (stale-while-revalidate)
 async function refreshFromSheets() {
   const url = localStorage.getItem(GSHEET_KEYS.url) || '';
   if (!url) return;
+
+  // ① readMatrix 시도 (매트릭스 탭 — 학생/간사)
+  try {
+    const res  = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'readMatrix' })
+    });
+    const json = JSON.parse(await res.text());
+
+    if (json.result === 'success') {
+      const changed = _applyMatrixData(json);
+      if (changed) {
+        renderAll();
+        const tabLabel = [json.tabs?.student, json.tabs?.gansa].filter(Boolean).join('/');
+        showToast(`✅ Sheets [${tabLabel}] 탭에서 데이터 반영됨`, 2500);
+      }
+      return; // readMatrix 성공 → 종료
+    }
+    console.warn('readMatrix 실패:', json.message, '— loadApp으로 폴백');
+  } catch(e) {
+    console.warn('readMatrix 오류:', e, '— loadApp으로 폴백');
+  }
+
+  // ② loadApp 폴백 (_멤버/_출석 탭)
   try {
     const res  = await fetch(url, {
       method: 'POST',
@@ -4216,34 +4242,98 @@ async function refreshFromSheets() {
       body: JSON.stringify({ action: 'loadApp' })
     });
     const json = JSON.parse(await res.text());
-    if (json.result !== 'success') {
-      console.warn('Sheets loadApp 실패:', json.message);
-      return;
-    }
+    if (json.result !== 'success') return;
 
     let changed = false;
-
-    // 멤버 갱신 (Sheets 우선)
     if (Array.isArray(json.members) && json.members.length > 0) {
       members = json.members;
       save('cherry_members_v5', members);
       changed = true;
     }
-
-    // 출석 갱신 (Sheets 우선, 주차별 덮어쓰기)
     if (json.att && typeof json.att === 'object') {
       Object.keys(json.att).forEach(wk => { att[wk] = json.att[wk]; });
       save('cherry_att_v5', att);
       changed = true;
     }
-
-    if (changed) {
-      renderAll();
-      showToast('✅ Sheets에서 최신 데이터 반영됨', 2000);
-    }
+    if (changed) { renderAll(); showToast('✅ Sheets(_멤버/_출석)에서 데이터 반영됨', 2000); }
   } catch(e) {
-    console.warn('Sheets 갱신 실패 — 로컬 데이터 유지:', e);
+    console.warn('loadApp 실패 — 로컬 데이터 유지:', e);
   }
+}
+
+// ── readMatrix 응답을 로컬 멤버/출석 데이터에 적용 ──
+// - 이름(name) 기준으로 로컬 멤버와 매칭
+// - 기존 멤버: role/part 업데이트, ID 유지
+// - 신규 멤버: assignId()로 ID 배정 후 등록
+// - 출석: name→id 변환 후 status 덮어쓰기 (time/score/note 기존값 유지)
+function _applyMatrixData(json) {
+  let changed = false;
+
+  // ─ 멤버 동기화 ─
+  if (Array.isArray(json.members) && json.members.length > 0) {
+    json.members.forEach(sm => {
+      if (!sm.name) return;
+      const existing = members.find(m => m.name === sm.name);
+      if (existing) {
+        // 기존 멤버: role/part만 갱신 (ID·gender·reg 유지)
+        if (sm.role && existing.role !== sm.role) { existing.role = sm.role; changed = true; }
+        if (sm.part && existing.part !== sm.part) { existing.part = sm.part; changed = true; }
+      } else {
+        // 신규 멤버: ID 자동 배정
+        const newId = assignId(sm.role || '학생');
+        if (newId) {
+          members.push({
+            id: newId, name: sm.name, gender: '',
+            role: sm.role || '학생', part: sm.part || '—', reg: today()
+          });
+          changed = true;
+        } else {
+          console.warn('ID 배정 실패 (구간 초과?):', sm.name, sm.role);
+        }
+      }
+    });
+    if (changed) {
+      members.sort((a, b) => a.id.localeCompare(b.id));
+      save('cherry_members_v5', members);
+    }
+  }
+
+  // ─ 출석 동기화 (name → id 변환) ─
+  if (json.att && typeof json.att === 'object') {
+    Object.keys(json.att).forEach(wk => {
+      if (!att[wk]) att[wk] = {};
+      Object.keys(json.att[wk]).forEach(name => {
+        const m = members.find(x => x.name === name);
+        if (!m) return; // 매칭 안 되는 이름 → 스킵
+        const sheetsStatus = json.att[wk][name].status; // '출석'|'지각'|'결석'
+        const prev = att[wk][m.id] || {};
+
+        // 결석이고 기존 기록이 없으면 엔트리 생성 안 함 (불필요한 결석 엔트리 방지)
+        if (sheetsStatus === '결석' && !prev.note && !prev.report) {
+          delete att[wk][m.id];
+          return;
+        }
+
+        // status 덮어쓰기. time·note·report 등 기존 상세 데이터는 보존
+        const score = sheetsStatus === '출석' ? (scoreConfig?.onTime ?? 1)
+                    : sheetsStatus === '지각' ? 0
+                    : (scoreConfig?.absent ?? 0);
+        att[wk][m.id] = {
+          ...prev,
+          status:   sheetsStatus,
+          lecLabel: sheetsStatus,
+          score:    score,
+          name:     m.name,
+          part:     m.part,
+          role:     m.role
+        };
+      });
+    });
+    save('cherry_att_v5', att);
+    changed = true;
+  }
+
+  return changed;
 }
 
 // ── 단일 출석 기록 Push (_출석 탭 upsert 또는 delete) ──
