@@ -1,6 +1,6 @@
 {
   "version": 6,
-  "exportedAt": "2026-05-23T08:41:10.497Z",
+  "exportedAt": "2026-05-30T00:39:12.685Z",
   "roles": [
     {
       "name": "학교장",
@@ -3909,9 +3909,602 @@
         "time": "",
         "note": "입원"
       }
+    },
+    "4주차": {
+      "100": {
+        "time": "08:03:07",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "오경선",
+        "part": "—",
+        "role": "간사"
+      },
+      "101": {
+        "time": "08:03:04",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "박영준",
+        "part": "—",
+        "role": "간사"
+      },
+      "103": {
+        "time": "08:11:27",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "정범준",
+        "part": "—",
+        "role": "간사"
+      },
+      "104": {
+        "time": "08:13:28",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "황금례",
+        "part": "6조 조간사",
+        "role": "조간사"
+      },
+      "105": {
+        "time": "08:13:05",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "노부금",
+        "part": "—",
+        "role": "간사"
+      },
+      "106": {
+        "time": "08:13:06",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "박정희",
+        "part": "—",
+        "role": "간사"
+      },
+      "107": {
+        "time": "08:13:17",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "심혜경",
+        "part": "2조 조간사",
+        "role": "조간사"
+      },
+      "108": {
+        "time": "08:13:26",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "정수정",
+        "part": "5조 조간사",
+        "role": "조간사"
+      },
+      "109": {
+        "time": "08:11:32",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "이화정",
+        "part": "—",
+        "role": "간사"
+      },
+      "110": {
+        "time": "08:02:43",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "이은숙",
+        "part": "—",
+        "role": "간사"
+      },
+      "112": {
+        "time": "08:03:10",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "배혜진",
+        "part": "1조 조간사",
+        "role": "조간사"
+      },
+      "113": {
+        "status": "결석",
+        "name": "안은선",
+        "part": "—",
+        "role": "간사",
+        "time": "",
+        "note": "인도네시아"
+      },
+      "115": {
+        "time": "08:03:23",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "소지연",
+        "part": "3조 조간사",
+        "role": "조간사"
+      },
+      "116": {
+        "time": "08:13:34",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "배성연",
+        "part": "7조 조간사",
+        "role": "조간사"
+      },
+      "117": {
+        "time": "08:03:38",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "노에스더",
+        "part": "2조 조간사",
+        "role": "조간사"
+      },
+      "118": {
+        "time": "08:03:28",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "정바다",
+        "part": "—",
+        "role": "간사"
+      },
+      "119": {
+        "time": "08:02:46",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "안송비",
+        "part": "1조 조간사",
+        "role": "조간사"
+      },
+      "120": {
+        "time": "08:03:12",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "배예진",
+        "part": "5조 조간사",
+        "role": "조간사"
+      },
+      "121": {
+        "time": "08:13:22",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "박정희",
+        "part": "4조 조간사",
+        "role": "조간사"
+      },
+      "122": {
+        "time": "08:13:24",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "김신혜",
+        "part": "4조 조간사",
+        "role": "조간사"
+      },
+      "123": {
+        "time": "08:13:31",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "노희연",
+        "part": "6조 조간사",
+        "role": "조간사"
+      },
+      "126": {
+        "time": "08:03:19",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "이채운",
+        "part": "—",
+        "role": "간사"
+      },
+      "127": {
+        "time": "08:02:48",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "서시온",
+        "part": "—",
+        "role": "간사"
+      },
+      "128": {
+        "time": "08:11:40",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "정준한",
+        "part": "—",
+        "role": "간사"
+      },
+      "129": {
+        "time": "08:12:11",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "서연수",
+        "part": "—",
+        "role": "간사"
+      },
+      "130": {
+        "time": "08:03:35",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "하지원",
+        "part": "—",
+        "role": "간사"
+      },
+      "131": {
+        "time": "08:13:12",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "김경숙",
+        "part": "진행",
+        "role": "간사"
+      },
+      "500": {
+        "time": "08:36:36",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "강세온",
+        "part": "5조",
+        "role": "학생"
+      },
+      "501": {
+        "time": "08:54:39",
+        "status": "지각",
+        "lecLabel": "1강 지각",
+        "score": 80,
+        "name": "백아영",
+        "part": "6조",
+        "role": "학생"
+      },
+      "502": {
+        "time": "08:51:47",
+        "status": "지각",
+        "lecLabel": "1강 지각",
+        "score": 80,
+        "name": "강서우",
+        "part": "1조",
+        "role": "학생"
+      },
+      "503": {
+        "time": "09:37:56",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "홍서진",
+        "part": "5조",
+        "role": "학생"
+      },
+      "504": {
+        "time": "08:51:35",
+        "status": "지각",
+        "lecLabel": "1강 지각",
+        "score": 80,
+        "name": "강서진",
+        "part": "7조",
+        "role": "학생"
+      },
+      "505": {
+        "time": "08:51:53",
+        "status": "지각",
+        "lecLabel": "1강 지각",
+        "score": 80,
+        "name": "줄리아",
+        "part": "1조",
+        "role": "학생"
+      },
+      "506": {
+        "time": "08:55:06",
+        "status": "지각",
+        "lecLabel": "1강 지각",
+        "score": 80,
+        "name": "정지후",
+        "part": "2조",
+        "role": "학생"
+      },
+      "507": {
+        "time": "08:56:02",
+        "status": "지각",
+        "lecLabel": "1강 지각",
+        "score": 80,
+        "name": "정지윤",
+        "part": "1조",
+        "role": "학생"
+      },
+      "508": {
+        "time": "08:41:36",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "박시온",
+        "part": "3조",
+        "role": "학생"
+      },
+      "509": {
+        "time": "08:48:04",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "진주찬",
+        "part": "6조",
+        "role": "학생"
+      },
+      "510": {
+        "time": "08:35:37",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "박지한",
+        "part": "2조",
+        "role": "학생"
+      },
+      "511": {
+        "time": "08:37:45",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "박지수",
+        "part": "3조",
+        "role": "학생"
+      },
+      "512": {
+        "time": "08:39:04",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "정연우",
+        "part": "2조",
+        "role": "학생"
+      },
+      "513": {
+        "time": "08:38:17",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "정연서",
+        "part": "4조",
+        "role": "학생"
+      },
+      "514": {
+        "time": "08:57:17",
+        "status": "지각",
+        "lecLabel": "1강 지각",
+        "score": 80,
+        "name": "이준혁",
+        "part": "7조",
+        "role": "학생"
+      },
+      "515": {
+        "time": "08:32:15",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "배준석",
+        "part": "6조",
+        "role": "학생"
+      },
+      "516": {
+        "time": "08:32:34",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "이규언",
+        "part": "7조",
+        "role": "학생"
+      },
+      "517": {
+        "time": "08:35:52",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "이나엘",
+        "part": "3조",
+        "role": "학생"
+      },
+      "518": {
+        "time": "08:29:52",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "김예안",
+        "part": "4조",
+        "role": "학생"
+      },
+      "519": {
+        "time": "08:29:44",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "김주안",
+        "part": "3조",
+        "role": "학생"
+      },
+      "520": {
+        "time": "08:31:02",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "김하준",
+        "part": "1조",
+        "role": "학생"
+      },
+      "522": {
+        "time": "08:25:23",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "정수아",
+        "part": "5조",
+        "role": "학생"
+      },
+      "523": {
+        "status": "결석",
+        "name": "김세아",
+        "part": "2조",
+        "role": "학생",
+        "time": "",
+        "note": "교회 행사"
+      },
+      "524": {
+        "time": "08:45:04",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "송예준",
+        "part": "4조",
+        "role": "학생"
+      },
+      "004": {
+        "time": "08:01:50",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "배성욱",
+        "part": "—",
+        "role": "리더십"
+      },
+      "005": {
+        "time": "08:02:41",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "배소현",
+        "part": "—",
+        "role": "리더십"
+      },
+      "045": {
+        "time": "08:02:44",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "안현주",
+        "part": "—",
+        "role": "행정팀장"
+      },
+      "009": {
+        "time": "08:02:52",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "원예은",
+        "part": "—",
+        "role": "데코웰컴팀장"
+      },
+      "012": {
+        "time": "08:02:55",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "원예서",
+        "part": "—",
+        "role": "미디어팀장"
+      },
+      "008": {
+        "time": "08:02:56",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "김예지",
+        "part": "—",
+        "role": "진행팀장"
+      },
+      "001": {
+        "time": "08:03:01",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "김성현",
+        "part": "—",
+        "role": "액팅"
+      },
+      "011": {
+        "time": "08:03:27",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "이덕희",
+        "part": "—",
+        "role": "작업팀장"
+      },
+      "010": {
+        "time": "08:03:31",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "민경혜",
+        "part": "—",
+        "role": "하스피팀장"
+      },
+      "007": {
+        "time": "08:11:18",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "우지연",
+        "part": "—",
+        "role": "학습자료팀장"
+      },
+      "006": {
+        "time": "08:11:20",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "배재옥",
+        "part": "—",
+        "role": "중보기도팀장"
+      },
+      "013": {
+        "time": "08:11:23",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "전은희",
+        "part": "—",
+        "role": "소그룹팀장"
+      },
+      "000": {
+        "time": "08:12:34",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "윤데이빗",
+        "part": "—",
+        "role": "학교장"
+      },
+      "003": {
+        "status": "결석",
+        "name": "박수현",
+        "part": "—",
+        "role": "리더십",
+        "time": "",
+        "note": "남아공"
+      },
+      "002": {
+        "time": "08:12:59",
+        "status": "출석",
+        "lecLabel": "출석",
+        "score": 100,
+        "name": "김애희",
+        "part": "—",
+        "role": "리더십"
+      }
     }
   },
-  "week": "3주차",
+  "week": "4주차",
   "cutoffs": {
     "1주차": {
       "start": "00:00",
