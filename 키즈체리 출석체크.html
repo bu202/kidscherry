@@ -4238,15 +4238,17 @@ const GITHUB_BACKUP_URL = 'https://raw.githubusercontent.com/bu202/kidscherry/ma
 // ── GitHub backup.json에서 전체 데이터 불러오기 ──
 async function loadFromGithubBackup(force = false) {
   try {
-    showToast('🔄 GitHub 백업에서 데이터 불러오는 중...', 2000);
     const res = await fetch(GITHUB_BACKUP_URL + '?t=' + Date.now());
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (!data.members || !Array.isArray(data.members)) throw new Error('백업 파일 형식 오류');
 
+    // ⚠ 확인(confirm)을 먼저 받고, 통과한 뒤에만 "불러오는 중" 표시
+    //   (이전엔 토스트가 confirm보다 먼저 떠서, 취소해도 '불러오는 중'만 남고 동기화 안 되는 혼란 발생)
     if (!force && members.length > 0) {
       if (!confirm(`GitHub 백업 (${data.exportedAt?.slice(0,10) || '날짜 불명'}, ${data.members.length}명)을 불러올까요?\n현재 로컬 데이터(${members.length}명)가 덮어씌워집니다.`)) return;
     }
+    showToast('🔄 GitHub 백업에서 데이터 불러오는 중...', 1500);
 
     // 전체 복원 (restoreData와 동일한 로직)
     if (Array.isArray(data.roles))        { roles        = data.roles;        save('cherry_roles_v5',     roles); }
@@ -4291,9 +4293,11 @@ function updateSyncStatusUI(exportedAt){
 //   → 출석 담당자(B)가 올린 새 백업을 A·C 가 링크만 눌러도 자동으로 최신 상태가 됨.
 //   → 로컬이 더 최신인데 GitHub 이 옛것이면 덮어쓰지 않음(담당자 작업 보호).
 async function autoSyncFromGithub(){
+  const badge = document.getElementById('sync-status');
+  if (badge) { badge.style.color='#0369a1'; badge.textContent='🔄 GitHub에서 최신 데이터 확인 중…'; }
   try {
     const res = await fetch(GITHUB_BACKUP_URL + '?t=' + Date.now());
-    if (!res.ok) return;
+    if (!res.ok) { if(badge) badge.textContent='⚠️ GitHub 연결 실패 (HTTP '+res.status+')'; return; }
     const data = await res.json();
     if (!data.members || !Array.isArray(data.members)) return;
     const remoteAt = data.exportedAt || '';
@@ -4305,6 +4309,7 @@ async function autoSyncFromGithub(){
       updateSyncStatusUI(localAt);        // 이미 최신 → 배지만 갱신
     }
   } catch(e) {
+    if (badge) badge.textContent = '⚠️ 동기화 확인 실패 — 인터넷 연결을 확인하세요';
     console.warn('[autoSyncFromGithub]', e);
   }
 }
@@ -4363,7 +4368,7 @@ initWeek(); initNewRoleSelect(); buildColorPresets(); applyDesignToDOM();
 buildBulkPartOptions(); // 명단관리 일괄 적용 드롭다운
 
 // 앱 시작 시: GitHub 최신본이 내 마지막 동기화보다 새로우면 자동 반영 (열람자 자동 동기화)
-setTimeout(autoSyncFromGithub, 300);
+autoSyncFromGithub();
 migrateIds(); // ← 기존 데이터 ID 자동 재배정
 renderAll(); renderInfoRoleFilter();
 loadSheetSettings();
