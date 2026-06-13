@@ -4238,7 +4238,7 @@ const GITHUB_BACKUP_URL = 'https://raw.githubusercontent.com/bu202/kidscherry/ma
 // ── GitHub backup.json에서 전체 데이터 불러오기 ──
 async function loadFromGithubBackup(force = false) {
   try {
-    const res = await fetch(GITHUB_BACKUP_URL + '?t=' + Date.now());
+    const res = await fetch(GITHUB_BACKUP_URL + '?t=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (!data.members || !Array.isArray(data.members)) throw new Error('백업 파일 형식 오류');
@@ -4296,7 +4296,7 @@ async function autoSyncFromGithub(){
   const badge = document.getElementById('sync-status');
   if (badge) { badge.style.color='#0369a1'; badge.textContent='🔄 GitHub에서 최신 데이터 확인 중…'; }
   try {
-    const res = await fetch(GITHUB_BACKUP_URL + '?t=' + Date.now());
+    const res = await fetch(GITHUB_BACKUP_URL + '?t=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) { if(badge) badge.textContent='⚠️ GitHub 연결 실패 (HTTP '+res.status+')'; return; }
     const data = await res.json();
     if (!data.members || !Array.isArray(data.members)) return;
