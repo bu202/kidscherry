@@ -72,6 +72,30 @@
 - **사용자 요청**: 코드 점검 결과를 위험도 % 로 분류해서 보고. 자동 보완 가능한 것은 알아서 처리.
 - **교훈**: 점검 결과는 🔴 Critical (90%+) / 🟠 High (60-90%) / 🟡 Medium (30-60%) / 🟢 Low (<30%) 4단계로 정리. 각 항목에 한 줄 영향 설명 + 자동 보완 여부 명시. **동작 변경이 큰 보완은 사용자 결정 받고**, 안전한 보완 (누락 보강, dead code 제거, 일관성 정리) 은 알아서 처리 후 보고.
 
+### 17. 사용자 의도(워크플로우)를 먼저 확정하지 않고 엉뚱한 기능을 만든 실수 ⭐
+- **무엇을 잘못했나**: "백업이 적용 안 된다"는 보고에 곧장 **File System Access 기반 "폴더 자동저장 + 자동 스냅샷(최근 10개)" 모듈**(~200줄)을 구현. 그런데 사용자의 실제 워크플로우는 *본인은 출석체크를 안 하고*, **B양이 출석 → 백업파일 생성 → 관리자가 받아서 `backup.json`으로 폴더에 최신화 → A·C양이 링크 클릭 시 자동 동기화로 열람**하는 구조였음. 즉 "자동저장"은 애초에 불필요했고 통째로 제거 후 재설계함.
+- **교훈**: "백업/동기화"는 **누가 데이터를 만들고(편집자), 누가 보고(열람자), 어디가 단일 진실원본(SoT)인지**를 먼저 한 문장으로 확정하고 코드 작성. 이번 SoT = **GitHub `backup.json` (raw.githubusercontent)**. 편집자=B양, 열람자=A·C양, 중계자=관리자. 이 3역할을 모르면 어떤 백업코드도 헛발질.
+
+### 18. 자동 동기화가 "첫 방문(members.length===0)"에만 동작 → 재방문자는 옛 데이터 박제
+- **무엇을 잘못했나**: GitHub 백업 자동복원이 `if (members.length === 0)` 조건이라, 한 번이라도 들어왔던 A·C양은 localStorage에 옛 데이터가 남아 **재방문 시 자동 동기화가 스킵**됨. "링크 클릭하면 최신이 떠야 하는데 옛날 게 뜬다"의 원인.
+- **교훈**: 공유 열람 모델에선 **매 방문 시 원격 최신본과 비교**해야 함. 해결책 = `exportedAt` 비교 게이트 `autoSyncFromGithub()`: `remoteAt > localStorage.cherry_last_synced_at` 이면 자동 반영, **로컬이 더 최신이면 덮어쓰지 않음(편집자 작업 보호)**. `loadFromGithubBackup` 성공 시 `cherry_last_synced_at` 기록, `clearAllData`에서 제거.
+
+### 19. 토스트(진행표시)를 confirm보다 먼저 띄운 순서 버그
+- **무엇을 잘못했나**: `loadFromGithubBackup`에서 `showToast('🔄 불러오는 중')`를 `confirm()`(덮어쓰기 확인) **앞에** 호출. 사용자가 confirm을 취소해도 "불러오는 중" 토스트만 남아 **"버튼 눌러도 동기화 안 된다"는 거짓 진행 표시** 발생.
+- **교훈**: 진행/성공 토스트는 **사용자 확인(confirm)을 통과한 뒤에만** 띄운다. fetch는 confirm 전에 해도 되지만(확인창에 날짜·인원 표시용), **사용자에게 보이는 피드백은 실제 동작이 확정된 후**에.
+
+### 20. raw.githubusercontent CDN 캐시(5분) — `?t=` 쿼리로 못 깸 (구조적 한계)
+- **무엇을 잘못했나**: `backup.json` push 직후에도 `https://raw.githubusercontent.com/.../backup.json`이 **최대 5분(`cache-control: max-age=300`) 옛 데이터**를 반환. `?t=Date.now()` 캐시버스팅을 붙였지만 **Fastly CDN이 쿼리스트링을 캐시키에서 무시**해 안 깨짐. 엣지 노드(`x-served-by`)마다 갱신 시점도 달라 한동안 사람마다 다른 데이터를 봄.
+- **교훈**: raw.githubusercontent를 백엔드로 쓰면 **갱신 전파에 최대 5분 지연**이 구조적으로 존재. `fetch(..., { cache:'no-store' })`는 **브라우저 캐시만** 우회(CDN 엣지 캐시는 못 깸). 실시간성이 중요하면 캐시 없는 백엔드(Apps Script `doGet` 등)를 권할 것. 사용자에게 "갱신 후 최대 5분"을 반드시 안내.
+
+### 21. "안 된다" 보고 → 추측 반복 금지, 헤드리스로 실제 재현 (CLAUDE.md #8 강화)
+- **무엇을 잘못했나(할 뻔)**: "처음 들어가면 아무것도 안 뜸"에 코드를 계속 추측만 할 뻔. 실제로는 **코드는 정상이고 사용자 브라우저의 옛 코드 캐시** 문제였음.
+- **교훈**: 외부 의존(GitHub/CORS/CDN/렌더)이 얽힌 버그는 **직접 재현**으로 결론낸다. 이 프로젝트의 표준 진단 도구:
+  - `cmp` + `python3 -c "import json"` 으로 **두 파일 exportedAt/주차 비교**
+  - `curl -s -D - URL` 으로 **HTTP 상태 + CORS(`access-control-allow-origin`) + 본문** 확인
+  - **헤드리스 Chrome 실제 렌더**: `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --disable-gpu --no-sandbox --virtual-time-budget=8000 --dump-dom "URL?t=$(date +%s)"` → DOM 덤프로 데이터 렌더/배지 텍스트 확인 (puppeteer 불필요)
+  - 배포 반영은 `curl github.io | grep -c "새함수명"` 으로 신코드 여부 직접 확인 (Pages 빌드 1~2분 지연 감안)
+
 ## 주요 데이터 일관성 규칙 (작업 시 반드시 지킬 것)
 
 ### 출석 entry 필드는 항상 4개가 일관되게
@@ -106,6 +130,7 @@
 - `cherry_score_cfg_v1` — 점수 기준
 - `cherry_pass_cfg_v1` — 수료 기준
 - `cherry_gsheet_url` / `cherry_gsheet_inited_tabs` / `cherry_gsheet_v5_confirmed` — 시트 연동 상태
+- `cherry_last_synced_at` — 이 클라이언트가 마지막으로 받은 GitHub 백업의 `exportedAt` (자동 동기화 판단용). **백업 payload에는 포함 안 함**(클라이언트별 로컬 메타). `clearAllData` 시 제거.
 
 ### Google Sheets 매트릭스 동기화 (v6)
 - 탭 2개: `일반출석` (행=전체 멤버, 열=일반 주차) / `간사교육` (행=간사, 열=간사교육 회차)
@@ -119,14 +144,27 @@
 - 점수 규칙을 변경해도 **이미 기록된 출석의 점수는 재계산 안 함** (의도된 동작)
 - 사용자가 옵션 1 (현재 동작 유지) 선택 — 재계산 기능 추가 금지
 
+### GitHub backup.json 공유 동기화 (중앙 열람용 SoT)
+**워크플로우 (역할 분리)**: B양(편집자)이 사이트에서 출석체크 → `💾 백업 파일 저장`으로 `.json` 다운로드 → 관리자(중계자)가 받아 `/Users/bu/키즈체리/backup.json`으로 **이름 그대로 덮어쓰기** → `auto_push_backup.sh`(fswatch)가 GitHub에 자동 push → A·C양(열람자)이 링크 클릭 시 **자동 동기화로 최신 열람**.
+- **단일 진실원본(SoT)** = GitHub `backup.json`. URL 상수 `GITHUB_BACKUP_URL = https://raw.githubusercontent.com/bu202/kidscherry/main/backup.json`.
+- 배포 = GitHub Pages `https://bu202.github.io/kidscherry/` (repo `main`의 index.html을 그대로 서빙 → **수정은 반드시 push해야 사이트 반영**, 빌드 1~2분).
+- **자동 동기화 게이트** `autoSyncFromGithub()` (앱 시작 즉시 호출): GitHub `exportedAt` > `localStorage.cherry_last_synced_at` 이면 `loadFromGithubBackup(true)`로 자동 반영. **로컬이 더 최신이면 덮어쓰지 않음(편집자 보호)**. `members.length===0` 첫 방문도 자동 로드.
+- `loadFromGithubBackup(force)`: force=false면 confirm 후, **토스트는 confirm 통과 뒤에만**. 성공 시 `cherry_last_synced_at` 기록. fetch는 `{ cache:'no-store' }`.
+- 설정 탭 `🔄 공유 동기화` 섹션: 상태 배지(`#sync-status`) + 수동 `loadFromGithubBackup(true)` 버튼.
+- ⚠️ **raw CDN 캐시 5분**: 갱신 전파에 최대 5분 지연(구조적, #20 참고). 사용자에게 항상 안내.
+- **`auto_push_backup.sh`**: fswatch로 `backup.json` 변경 감지 → git add/commit/push. **gitignore 대상**. 실행 중인 본체는 `/Users/bu/auto_push_backup.sh`(DIR=`/Users/bu/키즈체리`). repo 내 동명 파일은 참고용 사본.
+- **두 HTML 동일 유지**: `index.html` 과 `키즈체리 출석체크.html` 는 **byte-동일**. 한쪽 수정 시 `cp index.html "키즈체리 출석체크.html"` 로 동기화 + `cmp` 확인.
+
 ### 반응형 레이아웃 (하이브리드)
 - ≥1400px: 자연 크기
 - 900~1400px: `document.body.style.zoom`으로 비율 유지하며 축소
 - <900px: 기존 `@media(max-width:900px)` 가 1열 스택 처리
 
 ## 작업 시 체크리스트
-1. UI/UX 영향 있는 변경 → 코드 작성 전 옵션 비교 제시
+1. UI/UX 영향 있는 변경 → 코드 작성 전 옵션 비교 제시 / **백업·동기화는 역할(편집자·열람자·SoT)부터 확정** (#17)
 2. 데이터 동기화 추가 → incremental 우선, 동시성 처리, 진단 엔드포인트, version 필드, 명시적 에러 응답
-3. 사용자가 "안 됩니다" 보고 → 스크린샷 텍스트 정밀 분석 + 콘솔 로그 요청 우선
+3. 사용자가 "안 됩니다" 보고 → 스크린샷 텍스트 정밀 분석 + 콘솔 로그 요청 + **헤드리스 Chrome으로 직접 재현** (#21)
 4. Apps Script 변경 → 한 번에 견고하게 (재배포 횟수 최소화)
 5. localStorage 키 / save 후크는 절대 다른 동작 추가 금지 (수정 원칙 1)
+6. HTML 수정 후 → `node --check`(스크립트 추출) 문법검증 + 두 HTML byte-동일 동기화 + push (Pages 반영 확인)
+7. 진행/성공 토스트는 **사용자 확인(confirm) 통과 뒤에만** 표시 (#19)
