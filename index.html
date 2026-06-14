@@ -247,6 +247,66 @@ tr.mem-row-selected td{background:#FFF0DC!important;}
 .mem-sel{cursor:pointer;width:16px;height:16px;accent-color:var(--accent);}
 #memCtxMenu .ctx-jo{padding:7px 4px;cursor:pointer;font-size:12px;font-weight:700;border-radius:6px;text-align:center;color:var(--text);transition:all .1s;}
 #memCtxMenu .ctx-jo:hover{background:var(--lion-light);color:var(--lion-mane);}
+
+/* ══════════════════════════════════════════════════════════════
+   📱 모바일 반응형 (≤768 큰폰/태블릿 · ≤480 폰 360~430px)
+   - 데스크탑 레이아웃/기능 불변. CSS만 추가(코랄 디자인 유지).
+   - <900px 에선 zoom JS가 해제되므로 여기 규칙이 단독 적용됨.
+   ══════════════════════════════════════════════════════════════ */
+@media(max-width:768px){
+  /* 페이지 가로 스크롤 차단(belt) */
+  body{overflow-x:hidden;}
+  /* 헤더: 로고 1행 + 우측 묶음 wrap. 모바일선 sticky 해제(높이증가 대비) */
+  .header{height:auto;min-height:56px;padding:9px 12px;flex-wrap:wrap;gap:8px 6px;position:static;}
+  .logo{gap:9px;flex:1 1 auto;min-width:0;}
+  .logo-icon{width:34px;height:34px;font-size:17px;}
+  .logo-title{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .logo-sub{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .header-right{gap:6px;}
+  /* 본문 여백 축소 */
+  .layout{padding:12px;gap:14px;}
+  /* 통계카드: 열 수 유지, 폰트/패딩만 축소 */
+  .stat-card{padding:11px 12px;border-radius:13px;}
+  .stat-val{font-size:22px;}
+  .stat-label{font-size:9px;}
+  /* 탭: 화면폭 100% 균등 분할 */
+  .tabs{width:100%;}
+  .tab-btn{flex:1;text-align:center;padding:8px 6px;}
+  /* 설정 드로어 전체폭 */
+  .drawer{width:100%;padding:18px 16px;}
+  /* 테이블: 컨테이너 안에서만 가로 스크롤(페이지 가로 스크롤 방지) */
+  .table-box{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  /* iOS 포커스 자동확대 방지: 입력 16px */
+  #searchInput{font-size:16px;}
+}
+
+@media(max-width:480px){
+  /* 헤더 장식(사자·어린양 SVG 배너) 숨김 — 버튼 공간 확보 */
+  .header .header-right > div:first-child{display:none;}
+  .header{padding:8px 10px;}
+  .logo-title{font-size:15px;}
+  /* 시계/마감/주차 컴팩트 */
+  .clock,#cutoffBadge{font-size:10px;padding:3px 8px;}
+  .week-sel{font-size:11px;padding:4px 9px;}
+  /* 헤더 우측을 전체폭으로 → 버튼이 가지런히 다음 행들로 wrap */
+  .header-right{width:100%;justify-content:flex-start;}
+  /* 헤더 버튼: 컴팩트하되 터치영역(min-height 34) 확보 */
+  .btn-hdr{font-size:11px;padding:6px 11px;min-height:34px;border-radius:16px;}
+  /* 통계카드 2열 유지 + 추가 축소 */
+  .stat-grid{gap:7px;}
+  .stat-grid-6{gap:6px;}
+  .stat-card{padding:10px 11px;}
+  .stat-val{font-size:20px;}
+  /* 카드/박스 패딩 축소 */
+  .search-box{padding:14px;}
+  .add-box,.recent-box{padding:13px;}
+  /* 테이블 셀 컴팩트 */
+  th{padding:7px 7px;font-size:10px;}
+  td{padding:6px 7px;font-size:11px;}
+  .layout{padding:10px;}
+  /* 우하단 사자 일러스트는 모바일에서 숨김(공간/노이즈) */
+  .lion-deco{display:none;}
+}
 </style>
 </head>
 <body>
