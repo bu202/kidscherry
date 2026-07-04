@@ -96,6 +96,17 @@
   - **헤드리스 Chrome 실제 렌더**: `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless --disable-gpu --no-sandbox --virtual-time-budget=8000 --dump-dom "URL?t=$(date +%s)"` → DOM 덤프로 데이터 렌더/배지 텍스트 확인 (puppeteer 불필요)
   - 배포 반영은 `curl github.io | grep -c "새함수명"` 으로 신코드 여부 직접 확인 (Pages 빌드 1~2분 지연 감안)
 
+### 22. 실제 배포 중인 Apps Script 프로젝트는 "index.html의 옛 URL"이 아니다 — 프로젝트가 2개다 ⭐
+- **무엇을 잘못했나(할 뻔)**: "☁️ 자동 백업" 기능 추가 시, 사용자가 원래 배포(권한 오류로 재배포 실패)를 못 고쳐서 **새 Apps Script 프로젝트를 만들어 우회 배포**했는데 이 사실이 CLAUDE.md에 없었음. 그래서 index.html에 박힌 옛 URL(`AKfycbw7...`)로 계속 진단 → "옛 코드다"만 반복. 실제로는 **새 프로젝트에 새 코드가 잘 배포돼 있었고**, 앱도 (사용자 기기 localStorage `cherry_gsheet_url` 또는 재배포로) 새 URL을 쓰고 있었음.
+- **교훈**:
+  - **실제 배포 중인 Apps Script 프로젝트 = "키즈체리 출석체크" (`script.google.com/home/projects/1BiSi2bxSWiOKxiXY6en2g_-nlkM-NQN5iyF...`)**. 편집기 계정은 **소현**. `index.html`에 하드코딩된 `DEFAULT_GSHEET_URL`(`AKfycbw7...`)은 **옛 프로젝트**일 수 있으니, 진단 전 **실제 프로젝트가 어느 것인지부터 확정**할 것.
+  - Apps Script `/exec`에 **익명 curl POST → Google Drive "페이지를 찾을 수 없음" HTML** 이 오면 "배포 안 됨"이 아니라 **접근권한이 익명 불허**일 수 있음(로그인된 브라우저에선 됨). curl 진단은 **false negative** 가능 → 최종 판정은 **브라우저에서 실제 버튼 클릭 + 토스트/콘솔** 로 한다.
+  - doGet 응답의 `SHEET_URL 미설정` = 그 배포가 도는 코드에 `const SHEET_URL=''`(레포 참고본 상태)라는 뜻. 즉 **배포된 코드 ≠ 편집기 코드**일 때 신뢰 가능한 신호.
+
+### 23. UrlFetchApp(외부 요청) 추가 시 `script.external_request` 권한 승인이 배포보다 먼저 ⭐
+- **무엇을 잘못했나**: 코드/토큰/URL 다 맞았는데 버튼이 `UrlFetchApp.fetch 호출 권한 없음 (script.external_request 필요)` 오류. Apps Script는 **새 스코프(UrlFetchApp)를 추가하면 소유자가 그 권한을 명시 승인하기 전엔 웹앱 실행 시 막음**.
+- **교훈**: 외부 호출(UrlFetchApp) 코드를 넣으면, 배포 전에 **편집기에서 `UrlFetchApp.fetch(...)`를 실제 호출하는 함수(예: `function _authorize(){ UrlFetchApp.fetch('https://api.github.com'); }`)를 ▶실행 → 권한 검토 → 고급 → 이동 → "외부 서비스에 연결" 허용**. 이때 나오는 **403 rate limit (익명 요청)** 은 정상 — 권한이 열렸다는 뜻이고, 실제 `pushBackup`은 토큰 인증(5,000/h)이라 문제 없음. `_authorize`는 승인 후 삭제 가능.
+
 ## 주요 데이터 일관성 규칙 (작업 시 반드시 지킬 것)
 
 ### 출석 entry 필드는 항상 4개가 일관되게
@@ -145,7 +156,10 @@
 - 사용자가 옵션 1 (현재 동작 유지) 선택 — 재계산 기능 추가 금지
 
 ### GitHub backup.json 공유 동기화 (중앙 열람용 SoT)
-**워크플로우 (역할 분리)**: B양(편집자)이 사이트에서 출석체크 → `💾 백업 파일 저장`으로 `.json` 다운로드 → 관리자(중계자)가 받아 `/Users/bu/키즈체리/backup.json`으로 **이름 그대로 덮어쓰기** → `auto_push_backup.sh`(fswatch)가 GitHub에 자동 push → A·C양(열람자)이 링크 클릭 시 **자동 동기화로 최신 열람**.
+**⭐ 권장 워크플로우 (2026-07-04~, 버튼 자동 백업)**: B양(편집자)이 **어느 기기에서든** 사이트 → `⚙️설정 → 데이터 백업/복원 → ☁️ 클릭 한 번으로 백업 (자동 저장)` 클릭 → 웹앱이 Apps Script `pushBackup` 호출 → **Apps Script가 GitHub `backup.json`에 직접 커밋** (다운로드·수동이동·관리자 중계·fswatch **전부 불필요**) → A·C양(열람자)이 링크 클릭 시 자동 동기화(최대 5분 CDN 지연).
+- **`pushBackupToGithub()`** (index.html): `buildBackupPayload()` 로 payload 생성(다운로드용 `backupData()` 와 **동일 헬퍼 공유**) → `getGsheetUrl()` 로 `{action:'pushBackup', data:payload}` POST → 성공 시 `cherry_last_synced_at` 갱신(편집자 자신의 autoSync 가 옛 CDN 캐시로 덮어쓰지 않게) + `_pushBackupInProgress` 연타방지.
+- **Apps Script `handlePushBackup`** (`apps_script_code.gs`): 스크립트 속성 `GITHUB_TOKEN`(fine-grained PAT, `contents:write`) 으로 GitHub contents API 커밋(sha 조회 후 update/create). 시트 불필요 → `getSpreadsheet_()` 앞에서 분기. 커밋 메시지에 **"앱 버튼"** 포함 → git log 로 버튼 백업 구분 가능. `script.external_request` 권한 필요(#23).
+- **구(舊) 폴백 경로 (수동)**: `💾 백업 파일 저장(수동)` = `backupData()` 로 `.json` 다운로드 → 관리자가 `/Users/bu/키즈체리/backup.json` 덮어쓰기 → `auto_push_backup.sh`(fswatch) push. 버튼 실패 시에만 사용.
 - **단일 진실원본(SoT)** = GitHub `backup.json`. URL 상수 `GITHUB_BACKUP_URL = https://raw.githubusercontent.com/bu202/kidscherry/main/backup.json`.
 - 배포 = GitHub Pages `https://bu202.github.io/kidscherry/` (repo `main`의 index.html을 그대로 서빙 → **수정은 반드시 push해야 사이트 반영**, 빌드 1~2분).
 - **자동 동기화 게이트** `autoSyncFromGithub()` (앱 시작 즉시 호출): GitHub `exportedAt` > `localStorage.cherry_last_synced_at` 이면 `loadFromGithubBackup(true)`로 자동 반영. **로컬이 더 최신이면 덮어쓰지 않음(편집자 보호)**. `members.length===0` 첫 방문도 자동 로드.
