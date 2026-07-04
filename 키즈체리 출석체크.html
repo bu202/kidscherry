@@ -505,7 +505,9 @@ tr.mem-row-selected td{background:#FFF0DC!important;}
         <h3>데이터 백업 / 복원</h3>
         <p style="font-size:11px;color:#888;margin-bottom:10px;line-height:1.6;">💡 브라우저 캐시를 지우면 데이터가 사라집니다. 정기적으로 백업하세요.</p>
         <div style="display:flex;flex-direction:column;gap:8px;">
-          <button class="btn-hdr" style="width:100%;justify-content:center;background:#f0fdf4;border-color:#6ee7b7;color:#059669;font-weight:700;" onclick="backupData()">💾 백업 파일 저장 (.json)</button>
+          <button class="btn-hdr" style="width:100%;justify-content:center;background:#eef2ff;border-color:#818cf8;color:#4f46e5;font-weight:700;" onclick="pushBackupToGithub()">☁️ 클릭 한 번으로 백업 (자동 저장)</button>
+          <div id="pushBackupMsg" style="font-size:11px;text-align:center;min-height:16px;color:#4f46e5;"></div>
+          <button class="btn-hdr" style="width:100%;justify-content:center;background:#f0fdf4;border-color:#6ee7b7;color:#059669;font-weight:700;" onclick="backupData()">💾 백업 파일 저장 (.json, 수동)</button>
           <label style="width:100%;cursor:pointer;">
             <div class="btn-hdr" style="width:100%;justify-content:center;background:#f0f0ff;border-color:#a5b4fc;color:#6366f1;font-weight:700;">📂 백업 파일 불러오기</div>
             <input type="file" id="restoreFile" accept=".json" style="display:none;" onchange="restoreData(event)">
@@ -2695,16 +2697,60 @@ function exportCSV(){
   const blob=new Blob(["\uFEFF"+rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n")],{type:"text/csv;charset=utf-8;"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`출석_${week}.csv`;a.click();
 }
-function backupData(){
-  // ⚠ v6+: 강의/점수/수료 설정도 함께 포함 (이전엔 누락되어 복원 시 default로 리셋되는 버그)
-  const payload={
+// ⚠ v6+: 강의/점수/수료 설정도 함께 포함 (이전엔 누락되어 복원 시 default로 리셋되는 버그)
+// 백업 payload 단일 소스 — backupData(다운로드) / pushBackupToGithub(자동) 가 공유
+function buildBackupPayload(){
+  return {
     version:6, exportedAt:new Date().toISOString(),
     roles, members, att, week, cutoffs, design, personalInfo, customWeeks,
     lectures, scoreConfig, passConfig
   };
+}
+function backupData(){
+  const payload=buildBackupPayload();
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json;charset=utf-8;"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);
   a.download=`체리출석_백업_${today()}.json`;a.click();
+}
+
+// ── ☁️ 클릭 한 번 자동 백업: Apps Script(pushBackup) → GitHub backup.json 직접 커밋 ──
+//    다운로드/수동 이동/관리자 중계 없이 SoT(backup.json)를 바로 갱신.
+let _pushBackupInProgress = false;   // 연타 방지(클라이언트 측 직렬화)
+async function pushBackupToGithub(){
+  if (_pushBackupInProgress) return;
+  const url = getGsheetUrl();
+  const msgEl = document.getElementById('pushBackupMsg');
+  const btn = document.querySelector('button[onclick="pushBackupToGithub()"]');
+  const payload = buildBackupPayload();
+
+  _pushBackupInProgress = true;
+  if (btn){ btn.disabled = true; btn.style.opacity = '0.6'; }
+  if (msgEl) msgEl.textContent = '☁️ GitHub에 백업 저장 중…';
+  showToast('☁️ GitHub에 백업 저장 중…', 2000);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'pushBackup', data: payload })
+    });
+    const json = await res.json();
+    if (json.result === 'success' && json.committed) {
+      // 방금 올린 게 최신 → 편집자 자신의 autoSync 가 옛 CDN 캐시로 덮어쓰지 않도록 기록
+      if (payload.exportedAt) localStorage.setItem('cherry_last_synced_at', payload.exportedAt);
+      const nMembers = json.members ?? payload.members.length;
+      if (msgEl) msgEl.innerHTML = `✅ 저장 완료 (${nMembers}명) · <b>최대 5분 후</b> 열람자에게 반영됩니다`;
+      showToast(`✅ 백업 저장 완료 (${nMembers}명, ${json.commitSha||''})`, 5000);
+    } else {
+      throw new Error(json.message || '알 수 없는 오류');
+    }
+  } catch(e) {
+    console.error('[pushBackupToGithub]', e);
+    if (msgEl) msgEl.innerHTML = `❌ 자동 저장 실패: ${e.message}<br>아래 <b>💾 백업 파일 저장(수동)</b>으로 받아주세요`;
+    showToast('❌ 자동 백업 실패: ' + e.message, 5000);
+  } finally {
+    _pushBackupInProgress = false;
+    if (btn){ btn.disabled = false; btn.style.opacity = '1'; }
+  }
 }
 
 // ── 주차별 CSV 저장 (기록 열람 탭에서 사용) ──

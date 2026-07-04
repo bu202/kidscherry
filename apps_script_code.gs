@@ -46,6 +46,9 @@ function doPost(e) {
       return respond({ result: 'pong' });
     }
 
+    // ── pushBackup: GitHub backup.json 커밋 (시트 불필요 → getSpreadsheet_ 앞) ──
+    if (action === 'pushBackup') return handlePushBackup(payload);
+
     const ss = getSpreadsheet_();
 
     // ── v8 신규 액션 ──
@@ -492,6 +495,72 @@ function buildCellNote_(u) {
   if (u.note)   parts.push('비고: ' + u.note);
   if (u.report) parts.push('레포트: 제출');
   return parts.join('\n');
+}
+
+// ══════════════════════════════════════════════
+//  pushBackup — 전체 백업 payload 를 GitHub backup.json 으로 직접 커밋
+//  · 버튼 클릭 → 다운로드/수동 이동 없이 자동 저장 (fswatch/관리자 중계 불필요)
+//  · 토큰: 스크립트 속성 'GITHUB_TOKEN' (fine-grained PAT, contents:write)
+//  · doPost 의 LockService 로 동시성 직렬화됨
+// ══════════════════════════════════════════════
+function handlePushBackup(payload) {
+  var token = PropertiesService.getScriptProperties().getProperty('GITHUB_TOKEN');
+  if (!token) {
+    return respond({ result: 'error',
+      message: 'GITHUB_TOKEN 미설정 — Apps Script 프로젝트 설정 > 스크립트 속성에 GITHUB_TOKEN(=PAT) 추가 후 재시도' });
+  }
+
+  var data = payload.data;
+  if (!data || !data.members || !Array.isArray(data.members)) {
+    return respond({ result: 'error', message: 'pushBackup: data.members 누락 — 잘못된 백업 payload' });
+  }
+
+  var OWNER = 'bu202', REPO = 'kidscherry', PATH = 'backup.json', BRANCH = 'main';
+  var apiUrl = 'https://api.github.com/repos/' + OWNER + '/' + REPO + '/contents/' + PATH;
+  var headers = {
+    'Authorization': 'Bearer ' + token,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28'
+  };
+
+  // 1) 현재 파일 sha 조회 (있으면 update, 없으면 create)
+  var sha = null;
+  var getRes = UrlFetchApp.fetch(apiUrl + '?ref=' + BRANCH,
+    { method: 'get', headers: headers, muteHttpExceptions: true });
+  var getCode = getRes.getResponseCode();
+  if (getCode === 200) {
+    sha = JSON.parse(getRes.getContentText()).sha;
+  } else if (getCode === 401 || getCode === 403) {
+    return respond({ result: 'error', message: 'GitHub 인증 실패 (' + getCode + ') — PAT 권한(contents:write)/만료 확인' });
+  } else if (getCode !== 404) {
+    return respond({ result: 'error', message: 'GitHub sha 조회 실패 (' + getCode + '): ' + getRes.getContentText().slice(0, 200) });
+  }
+
+  // 2) 내용 커밋 (base64, UTF-8)
+  var jsonStr = JSON.stringify(data, null, 2);
+  var body = {
+    message: 'backup 자동 업데이트 (앱 버튼, ' + new Date().toISOString() + ')',
+    content: Utilities.base64Encode(jsonStr, Utilities.Charset.UTF_8),
+    branch: BRANCH
+  };
+  if (sha) body.sha = sha;
+
+  var putRes = UrlFetchApp.fetch(apiUrl, {
+    method: 'put', headers: headers, contentType: 'application/json',
+    payload: JSON.stringify(body), muteHttpExceptions: true
+  });
+  var putCode = putRes.getResponseCode();
+  if (putCode === 200 || putCode === 201) {
+    var commit = JSON.parse(putRes.getContentText());
+    return respond({
+      result: 'success', action: 'pushBackup', committed: true,
+      created: putCode === 201,
+      exportedAt: data.exportedAt || null,
+      members: data.members.length,
+      commitSha: (commit.commit && commit.commit.sha) ? commit.commit.sha.slice(0, 7) : null
+    });
+  }
+  return respond({ result: 'error', message: 'GitHub 커밋 실패 (' + putCode + '): ' + putRes.getContentText().slice(0, 300) });
 }
 
 // ══════════════════════════════════════════════
